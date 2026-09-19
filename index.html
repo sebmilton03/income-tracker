@@ -37,14 +37,14 @@
   .status.on { color: var(--green-text); }
   .earned { margin: 6px 0 0; text-align: center; font-size: 58px; font-weight: 600; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
   .hours { margin: 2px 0 0; text-align: center; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .box { margin-top: 40px; padding: 16px; border-radius: 14px; background: var(--card); }
+  .box { padding: 16px; border-radius: 14px; background: var(--card); }
   .box .label { margin: 0; font-size: 13px; color: var(--muted); }
   .box .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 2px; }
   .box .name { margin: 0; font-size: 24px; font-weight: 600; }
   .box .amt { margin: 0; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .box.done { background: var(--green-bg); }
   .box.done .label, .box.done .name, .box.done .amt { color: var(--green-text); }
-  .bar-wrap { margin-top: 28px; }
+  .bar-wrap { margin: 20px 0 28px; }
   .bar { height: 14px; border-radius: 7px; background: var(--card); overflow: hidden; }
   .fill { height: 100%; width: 0; min-width: 8px; border-radius: 7px; background: var(--green); transition: width .4s; }
   .fill.surplus { background: var(--purple); }
@@ -67,6 +67,7 @@
   <p class="earned" id="earned">$0.00</p>
   <p class="hours" id="hours">0h 0m worked</p>
 
+  <div class="spacer"></div>
   <div class="box" id="box">
     <p class="label" id="label">Now paying</p>
     <div class="row">
@@ -80,7 +81,6 @@
     <div class="ends"><span>$0</span><span id="max"></span></div>
   </div>
 
-  <div class="spacer"></div>
   <button id="toggle">Start shift</button>
   <div class="links">
     <button id="edit">Edit hours</button>
