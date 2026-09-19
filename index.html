@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<title>Income Tracker</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #ffffff; --card: #f3f2ee; --text: #1a1a19; --muted: #6b6a66; --border: rgba(0,0,0,.18);
+    --green: #1D9E75; --green-text: #0F6E56; --green-bg: #E1F5EE; --purple: #7F77DD;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a19; --card: #2a2a28; --text: #f3f2ee; --muted: #a3a29c; --border: rgba(255,255,255,.22);
+      --green-text: #9FE1CB; --green-bg: #0b3a2e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+  }
+  main {
+    max-width: 420px; min-height: 100%; margin: 0 auto;
+    display: flex; flex-direction: column;
+    padding: calc(28px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+  }
+  .title { margin: 0; text-align: center; font-size: 15px; color: var(--muted); }
+  .status { margin: 44px 0 0; text-align: center; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .status.on { color: var(--green-text); }
+  .earned { margin: 6px 0 0; text-align: center; font-size: 58px; font-weight: 600; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .box { margin-top: 44px; padding: 16px; border-radius: 14px; background: var(--card); }
+  .box .label { margin: 0; font-size: 13px; color: var(--muted); }
+  .box .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 2px; }
+  .box .name { margin: 0; font-size: 24px; font-weight: 600; }
+  .box .amt { margin: 0; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .box.done { background: var(--green-bg); }
+  .box.done .label, .box.done .name, .box.done .amt { color: var(--green-text); }
+  .bar-wrap { margin-top: 28px; }
+  .bar { height: 14px; border-radius: 7px; background: var(--card); overflow: hidden; }
+  .fill { height: 100%; width: 0; min-width: 8px; border-radius: 7px; background: var(--green); transition: width .4s; }
+  .fill.surplus { background: var(--purple); }
+  .ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; color: var(--muted); }
+  .spacer { flex: 1; min-height: 32px; }
+  #toggle {
+    width: 100%; height: 60px; border: none; border-radius: 14px;
+    background: var(--green); color: #fff; font: inherit; font-size: 18px; font-weight: 600;
+  }
+  #toggle.stop { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  #toggle:active { transform: scale(.98); }
+  .links { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+  .links button { padding: 10px 14px; border: none; background: none; font: inherit; font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <p class="title">Income Tracker</p>
+  <p class="status" id="status">Off shift</p>
+  <p class="earned" id="earned">$0.00</p>
+
+  <div class="box" id="box">
+    <p class="label" id="label">Now paying</p>
+    <div class="row">
+      <p class="name" id="name">Rent</p>
+      <p class="amt" id="amt">$0.00 / $1,000</p>
+    </div>
+  </div>
+
+  <div class="bar-wrap">
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <div class="ends"><span>$0</span><span id="max"></span></div>
+  </div>
+
+  <div class="spacer"></div>
+  <button id="toggle">Start shift</button>
+  <div class="links">
+    <button id="edit">Edit hours</button>
+    <button id="reset">Reset month</button>
+  </div>
+</main>
+
+<script>
+  // Take-home pay per hour and monthly expenses, paid off in this order.
+  const RATE = 22.20;
+  const EXPENSES = [
+    ['Rent', 1000],
+    ['Utilities', 70],
+    ['Wifi', 15],
+    ['Data', 30],
+    ['Car insurance', 220],
+    ['Reggie', 425],
+    ['Spotify', 7],
+    ['Google One', 2],
+    ['Health Ins.', 300],
+    ['Gas', 300],
+    ['Groceries', 250],
+    ['Pocket money', 300],
+  ];
+
+  const HOUR = 3600000;
+  const KEY = 'income-tracker-v1';
+  const RATE_CENTS = Math.round(RATE * 100);
+  const TOTAL_CENTS = EXPENSES.reduce((sum, [, amt]) => sum + amt * 100, 0);
+
+  // banked = ms worked in finished shifts this month; start = timestamp of the running shift.
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || { banked: 0, start: null }; }
+    catch { return { banked: 0, start: null }; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  }
+  let state = load();
+
+  const $ = id => document.getElementById(id);
+  const money = cents => '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const dollars = cents => '$' + (cents / 100).toLocaleString('en-US');
+  const clock = ms => {
+    const s = Math.floor(ms / 1000);
+    return Math.floor(s / 3600) + ':' + String(Math.floor(s % 3600 / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  };
+
+  function render() {
+    const shiftMs = state.start ? Date.now() - state.start : 0;
+    const hours = Math.floor((state.banked + shiftMs) / HOUR);
+    const earned = hours * RATE_CENTS;
+
+    $('status').textContent = state.start ? 'On shift · ' + clock(shiftMs) : 'Off shift';
+    $('status').classList.toggle('on', !!state.start);
+    $('earned').textContent = money(earned);
+    $('toggle').textContent = state.start ? 'Stop shift' : 'Start shift';
+    $('toggle').classList.toggle('stop', !!state.start);
+    $('max').textContent = dollars(TOTAL_CENTS);
+
+    let left = earned, current = null;
+    for (const [name, amt] of EXPENSES) {
+      if (left < amt * 100) { current = { name, amt: amt * 100, paid: left }; break; }
+      left -= amt * 100;
+    }
+
+    if (current) {
+      $('box').classList.remove('done');
+      $('label').textContent = 'Now paying';
+      $('name').textContent = current.name;
+      $('amt').textContent = money(current.paid) + ' / ' + dollars(current.amt);
+      $('fill').classList.remove('surplus');
+      $('fill').style.width = (earned / TOTAL_CENTS * 100) + '%';
+    } else {
+      const surplus = earned - TOTAL_CENTS;
+      $('box').classList.add('done');
+      $('label').textContent = 'All bills paid ✓';
+      $('name').textContent = 'Surplus';
+      $('amt').textContent = money(surplus);
+      $('fill').classList.add('surplus');
+      $('fill').style.width = Math.min(surplus / TOTAL_CENTS * 100, 100) + '%';
+    }
+  }
+
+  $('toggle').onclick = () => {
+    if (state.start) {
+      state.banked += Date.now() - state.start;
+      state.start = null;
+    } else {
+      state.start = Date.now();
+    }
+    save();
+    render();
+  };
+
+  // Set total hours worked this month. Accepts "3.5" or "3:30". A running shift keeps running.
+  $('edit').onclick = () => {
+    const shiftMs = state.start ? Date.now() - state.start : 0;
+    const current = ((state.banked + shiftMs) / HOUR).toFixed(2).replace(/\.?0+$/, '');
+    const input = prompt('Hours worked this month (like 3.5 or 3:30)', current);
+    if (input === null) return;
+    const [h, m] = input.trim().split(':');
+    const hours = Number(h) + (m ? Number(m) / 60 : 0);
+    if (!input.trim() || !isFinite(hours) || hours < 0) { alert('Enter hours like 3.5 or 3:30'); return; }
+    const total = Math.round(hours * HOUR);
+    if (state.start && total < shiftMs) {
+      state.start = Date.now() - total;
+      state.banked = 0;
+    } else {
+      state.banked = total - shiftMs;
+    }
+    save();
+    render();
+  };
+
+  $('reset').onclick = () => {
+    if (!confirm('Reset this month back to $0?')) return;
+    state = { banked: 0, start: null };
+    save();
+    render();
+  };
+
+  render();
+  setInterval(render, 1000);
+  document.addEventListener('visibilitychange', render);
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
