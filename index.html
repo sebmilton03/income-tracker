@@ -36,7 +36,8 @@
   .status { margin: 44px 0 0; text-align: center; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .status.on { color: var(--green-text); }
   .earned { margin: 6px 0 0; text-align: center; font-size: 58px; font-weight: 600; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
-  .box { margin-top: 44px; padding: 16px; border-radius: 14px; background: var(--card); }
+  .hours { margin: 2px 0 0; text-align: center; font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .box { margin-top: 40px; padding: 16px; border-radius: 14px; background: var(--card); }
   .box .label { margin: 0; font-size: 13px; color: var(--muted); }
   .box .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 2px; }
   .box .name { margin: 0; font-size: 24px; font-weight: 600; }
@@ -64,6 +65,7 @@
   <p class="title">Income Tracker</p>
   <p class="status" id="status">Off shift</p>
   <p class="earned" id="earned">$0.00</p>
+  <p class="hours" id="hours">0h 0m worked</p>
 
   <div class="box" id="box">
     <p class="label" id="label">Now paying</p>
@@ -108,6 +110,7 @@
   const KEY = 'income-tracker-v1';
   const RATE_CENTS = Math.round(RATE * 100);
   const TOTAL_CENTS = EXPENSES.reduce((sum, [, amt]) => sum + amt * 100, 0);
+  const SURPLUS_MAX_CENTS = 1000 * 100;
 
   // banked = ms worked in finished shifts this month; start = timestamp of the running shift.
   function load() {
@@ -129,15 +132,16 @@
 
   function render() {
     const shiftMs = state.start ? Date.now() - state.start : 0;
-    const hours = Math.floor((state.banked + shiftMs) / HOUR);
+    const workedMs = state.banked + shiftMs;
+    const hours = Math.floor(workedMs / HOUR);
     const earned = hours * RATE_CENTS;
+    $('hours').textContent = hours + 'h ' + Math.floor(workedMs % HOUR / 60000) + 'm worked';
 
     $('status').textContent = state.start ? 'On shift · ' + clock(shiftMs) : 'Off shift';
     $('status').classList.toggle('on', !!state.start);
     $('earned').textContent = money(earned);
     $('toggle').textContent = state.start ? 'Stop shift' : 'Start shift';
     $('toggle').classList.toggle('stop', !!state.start);
-    $('max').textContent = dollars(TOTAL_CENTS);
 
     let left = earned, current = null;
     for (const [name, amt] of EXPENSES) {
@@ -152,6 +156,7 @@
       $('amt').textContent = money(current.paid) + ' / ' + dollars(current.amt);
       $('fill').classList.remove('surplus');
       $('fill').style.width = (earned / TOTAL_CENTS * 100) + '%';
+      $('max').textContent = dollars(TOTAL_CENTS);
     } else {
       const surplus = earned - TOTAL_CENTS;
       $('box').classList.add('done');
@@ -159,7 +164,8 @@
       $('name').textContent = 'Surplus';
       $('amt').textContent = money(surplus);
       $('fill').classList.add('surplus');
-      $('fill').style.width = Math.min(surplus / TOTAL_CENTS * 100, 100) + '%';
+      $('fill').style.width = Math.min(surplus / SURPLUS_MAX_CENTS * 100, 100) + '%';
+      $('max').textContent = dollars(SURPLUS_MAX_CENTS);
     }
   }
 
